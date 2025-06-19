@@ -1,6 +1,20 @@
 import React, { useState } from "react";
 import Tesseract from "tesseract.js";
 
+function getCategory({ merchant, ocrText }) {
+  // Lowercase all for easy matching
+  const text = `${merchant} ${ocrText}`.toLowerCase();
+  if (text.match(/uber|lyft|taxi|bus|train|flight|airlines|transport|taxi/i)) return "Travel";
+  if (text.match(/starbucks|coffee|cafe|restaurant|bar|diner|pizza|food|eat|burger|sandwich|grill|mcdonald|subway|kfc|popeyes|noodle|bistro|tea|drink/i)) return "Food & Drink";
+  if (text.match(/walmart|costco|supermarket|grocery|target|aldi|kroger|groceries|market/i)) return "Groceries";
+  if (text.match(/hotel|motel|inn|airbnb|hostel/i)) return "Lodging";
+  if (text.match(/pharmacy|medic|drugstore|walgreens|rite aid|cvs/i)) return "Pharmacy/Health";
+  if (text.match(/amazon|shopping|clothes|apparel|shoes|fashion|store|mall/i)) return "Shopping";
+  if (text.match(/gas|petrol|fuel|shell|chevron|exxon/i)) return "Gas/Transport";
+  if (text.match(/utility|electric|water|bill|internet|cable|comcast|at&t|verizon/i)) return "Utilities";
+  return "Other";
+}
+
 // Helper function to parse total, date, and merchant from OCR text
 function parseReceiptFields(text) {
   // Split into lines, clean up whitespace
@@ -8,7 +22,6 @@ function parseReceiptFields(text) {
 
   // --- Total ---
   let total = "";
-  // Find a line with "total" and an amount
   for (const line of lines) {
     if (/total/i.test(line)) {
       const match = line.match(/([\d]+[\d.,]*)/);
@@ -18,7 +31,6 @@ function parseReceiptFields(text) {
       }
     }
   }
-  // Fallback: get largest dollar amount in all lines
   if (!total) {
     const amounts = lines.flatMap(line =>
       Array.from(line.matchAll(/([\d]+[\d.,]+)/g), m =>
@@ -41,11 +53,13 @@ function parseReceiptFields(text) {
   }
 
   // --- Merchant ---
-  // Assume first non-empty line, maybe two if the second line is short
   let merchant = lines.length > 0 ? lines[0] : "";
   if (lines.length > 1 && lines[1].length < 30) merchant += " " + lines[1];
 
-  return { total, date, merchant };
+  // --- Category ---
+  const category = getCategory({ merchant, ocrText: text });
+
+  return { total, date, merchant, category };
 }
 
 function ReceiptUploader({ onImageUpload }) {
@@ -57,6 +71,7 @@ function ReceiptUploader({ onImageUpload }) {
     total: "",
     date: "",
     merchant: "",
+    category: "",
   });
 
   // Handle file selection
@@ -153,18 +168,21 @@ function ReceiptUploader({ onImageUpload }) {
       )}
       {(parsedFields.total || parsedFields.date || parsedFields.merchant) && (
         <div style={{ marginTop: "1.5rem" }}>
-          <h3>Parsed Fields:</h3>
-          <div>
+            <h3>Parsed Fields:</h3>
+            <div>
             <b>Merchant:</b> {parsedFields.merchant || "Not found"}
-          </div>
-          <div>
+            </div>
+            <div>
             <b>Date:</b> {parsedFields.date || "Not found"}
-          </div>
-          <div>
+            </div>
+            <div>
             <b>Total:</b> {parsedFields.total || "Not found"}
-          </div>
+            </div>
+            <div>
+            <b>Category:</b> {parsedFields.category || "Other"}
+            </div>
         </div>
-      )}
+        )}
     </div>
   );
 }
