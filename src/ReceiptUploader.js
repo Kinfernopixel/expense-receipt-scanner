@@ -1,11 +1,63 @@
 import React, { useState } from "react";
 import Tesseract from "tesseract.js";
 
+// Helper function to parse total, date, and merchant from OCR text
+function parseReceiptFields(text) {
+  // Split into lines, clean up whitespace
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // --- Total ---
+  let total = "";
+  // Find a line with "total" and an amount
+  for (const line of lines) {
+    if (/total/i.test(line)) {
+      const match = line.match(/([\d]+[\d.,]*)/);
+      if (match) {
+        total = match[1];
+        break;
+      }
+    }
+  }
+  // Fallback: get largest dollar amount in all lines
+  if (!total) {
+    const amounts = lines.flatMap(line =>
+      Array.from(line.matchAll(/([\d]+[\d.,]+)/g), m =>
+        parseFloat(m[1].replace(/,/g, ''))
+      )
+    );
+    if (amounts.length) total = Math.max(...amounts).toFixed(2);
+  }
+
+  // --- Date ---
+  let date = "";
+  for (const line of lines) {
+    const match = line.match(
+      /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})|(\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})/
+    );
+    if (match) {
+      date = match[0];
+      break;
+    }
+  }
+
+  // --- Merchant ---
+  // Assume first non-empty line, maybe two if the second line is short
+  let merchant = lines.length > 0 ? lines[0] : "";
+  if (lines.length > 1 && lines[1].length < 30) merchant += " " + lines[1];
+
+  return { total, date, merchant };
+}
+
 function ReceiptUploader({ onImageUpload }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [ocrText, setOcrText] = useState("");
   const [loading, setLoading] = useState(false);
+  const [parsedFields, setParsedFields] = useState({
+    total: "",
+    date: "",
+    merchant: "",
+  });
 
   // Handle file selection
   const handleImageChange = (e) => {
@@ -14,6 +66,7 @@ function ReceiptUploader({ onImageUpload }) {
       setSelectedImage(file);
       setPreviewUrl(URL.createObjectURL(file));
       setOcrText(""); // reset
+      setParsedFields({ total: "", date: "", merchant: "" }); // reset
       if (onImageUpload) onImageUpload(file);
 
       // Run OCR on the image
@@ -26,16 +79,19 @@ function ReceiptUploader({ onImageUpload }) {
     setLoading(true);
     Tesseract.recognize(file, "eng", {
       logger: (m) => {
-        // Optionally, you can add progress here
-        // console.log(m);
+        // You could show progress here if desired
       },
     })
       .then(({ data: { text } }) => {
         setOcrText(text);
+        // Parse fields after OCR
+        const parsed = parseReceiptFields(text);
+        setParsedFields(parsed);
         setLoading(false);
       })
       .catch((err) => {
         setOcrText("Failed to extract text.");
+        setParsedFields({ total: "", date: "", merchant: "" });
         setLoading(false);
       });
   };
@@ -44,6 +100,7 @@ function ReceiptUploader({ onImageUpload }) {
     setSelectedImage(null);
     setPreviewUrl(null);
     setOcrText("");
+    setParsedFields({ total: "", date: "", merchant: "" });
     if (onImageUpload) onImageUpload(null);
   };
 
@@ -52,7 +109,7 @@ function ReceiptUploader({ onImageUpload }) {
       <h2>Upload Receipt Image</h2>
       <input
         type="file"
-        accept="image/*"
+        accept="image/png, image/jpeg, image/jpg"
         onChange={handleImageChange}
         style={{ margin: "1rem 0" }}
       />
@@ -92,6 +149,20 @@ function ReceiptUploader({ onImageUpload }) {
           >
             {ocrText}
           </pre>
+        </div>
+      )}
+      {(parsedFields.total || parsedFields.date || parsedFields.merchant) && (
+        <div style={{ marginTop: "1.5rem" }}>
+          <h3>Parsed Fields:</h3>
+          <div>
+            <b>Merchant:</b> {parsedFields.merchant || "Not found"}
+          </div>
+          <div>
+            <b>Date:</b> {parsedFields.date || "Not found"}
+          </div>
+          <div>
+            <b>Total:</b> {parsedFields.total || "Not found"}
+          </div>
         </div>
       )}
     </div>
