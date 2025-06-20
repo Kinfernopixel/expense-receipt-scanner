@@ -1,10 +1,52 @@
 import React, { useState } from "react";
 import Tesseract from "tesseract.js";
+import axios from "axios";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend
 } from "recharts";
 
-// --- Categorization helper ---
+// --- OLLAMA LLM CLASSIFIER ---
+async function classifyWithOllama(text) {
+    const prompt = `Classify the following receipt into one and only one of these categories: 
+  - Food & Drink
+  - Groceries
+  - Travel
+  - Shopping
+  - Gas
+  - Utilities
+  - Health
+  - Other
+
+  Give ONLY the category name, nothing else.
+
+  Receipt text:
+  ${text}
+
+  Category:`;
+
+
+  console.log("Sending prompt to Ollama:", prompt);
+
+  try {
+    const response = await axios.post(
+      "http://localhost:11434/api/generate",
+      {
+        model: "llama3",
+        prompt: prompt,
+        stream: false
+      }
+    );
+    console.log("Ollama response:", response.data);
+    // Sometimes Ollama may return the result under 'response', sometimes under 'message' or nested in 'choices'
+    // Here, we use 'response.data.response', but you can add more logic if needed
+    return response.data.response ? response.data.response.trim() : "";
+  } catch (error) {
+    console.error("Ollama error:", error);
+    return ""; // fallback will happen in runOCR
+  }
+}
+
+// --- Categorization helper (fallback) ---
 function getCategory({ merchant, ocrText }) {
   const text = `${merchant} ${ocrText}`.toLowerCase();
   if (text.match(/uber|lyft|taxi|bus|train|flight|airlines|transport|taxi/i)) return "Travel";
@@ -58,7 +100,7 @@ function parseReceiptFields(text) {
   let merchant = lines.length > 0 ? lines[0] : "";
   if (lines.length > 1 && lines[1].length < 30) merchant += " " + lines[1];
 
-  // --- Category ---
+  // --- Category (fallback, overwritten by LLM if working) ---
   const category = getCategory({ merchant, ocrText: text });
 
   return { total, date, merchant, category };
@@ -75,40 +117,42 @@ function ReceiptUploader({ onImageUpload }) {
     merchant: "",
     category: "",
   });
-
-  // NEW: State for all saved receipts
   const [receipts, setReceipts] = useState([]);
 
-  // Handle file selection
+  // --- Handle file selection ---
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setSelectedImage(file);
       setPreviewUrl(URL.createObjectURL(file));
-      setOcrText(""); // reset
-      setParsedFields({ total: "", date: "", merchant: "", category: "" }); // reset
+      setOcrText("");
+      setParsedFields({ total: "", date: "", merchant: "", category: "" });
       if (onImageUpload) onImageUpload(file);
       runOCR(file);
     }
   };
 
-  // OCR function using Tesseract.js
-  const runOCR = (file) => {
+  // --- OCR + LLM ---
+  const runOCR = async (file) => {
     setLoading(true);
-    Tesseract.recognize(file, "eng", {
-      logger: (m) => {},
-    })
-      .then(({ data: { text } }) => {
-        setOcrText(text);
-        const parsed = parseReceiptFields(text);
-        setParsedFields(parsed);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setOcrText("Failed to extract text.");
-        setParsedFields({ total: "", date: "", merchant: "", category: "" });
-        setLoading(false);
-      });
+    try {
+      const { data: { text } } = await Tesseract.recognize(file, "eng");
+      setOcrText(text);
+      const parsed = parseReceiptFields(text);
+      let aiCategory = parsed.category;
+      try {
+        aiCategory = await classifyWithOllama(text);
+        console.log("Category from Ollama:", aiCategory);
+      } catch (e) {
+        console.error("Falling back to rule-based category");
+      }
+      setParsedFields({ ...parsed, category: aiCategory });
+      setLoading(false);
+    } catch (err) {
+      setOcrText("Failed to extract text.");
+      setParsedFields({ total: "", date: "", merchant: "", category: "" });
+      setLoading(false);
+    }
   };
 
   const handleReset = () => {
@@ -133,7 +177,6 @@ function ReceiptUploader({ onImageUpload }) {
     total: Number(total.toFixed(2)),
   }));
 
-  // Pie chart colors
   const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
   return (
@@ -218,7 +261,6 @@ function ReceiptUploader({ onImageUpload }) {
           </button>
         </div>
       )}
-
       {/* Saved Receipts Table */}
       {receipts.length > 0 && (
         <div style={{ maxWidth: 700, margin: "2rem auto" }}>
@@ -245,7 +287,6 @@ function ReceiptUploader({ onImageUpload }) {
           </table>
         </div>
       )}
-
       {/* Bar Chart */}
       {receipts.length > 0 && (
         <div style={{ maxWidth: 500, margin: "2rem auto" }}>
@@ -261,8 +302,7 @@ function ReceiptUploader({ onImageUpload }) {
           </ResponsiveContainer>
         </div>
       )}
-
-      {/* Optional: Pie Chart */}
+      {/* Pie Chart */}
       {receipts.length > 0 && (
         <div style={{ maxWidth: 400, margin: "2rem auto" }}>
           <h2>Spending Distribution</h2>
