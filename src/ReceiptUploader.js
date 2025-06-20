@@ -22,23 +22,27 @@ function parseReceiptFields(text) {
 
   // --- Total ---
   let total = "";
-  for (const line of lines) {
-    if (/total/i.test(line)) {
-      const match = line.match(/([\d]+[\d.,]*)/);
-      if (match) {
-        total = match[1];
+    // First, look for a line with 'total', 'amount', or 'balance' and a currency/number
+    for (const line of lines) {
+    if (/(total|amount|balance|grand total|subtotal)/i.test(line)) {
+        // Get the last number in the line (usually the total is last)
+        const matches = [...line.matchAll(/([\d]+[\d.,]*)/g)];
+        if (matches.length) {
+        total = matches[matches.length - 1][1];
         break;
-      }
+        }
     }
-  }
-  if (!total) {
+    }
+
+    // Fallback: pick the largest number between $1 and $1000 (most receipts)
+    if (!total) {
     const amounts = lines.flatMap(line =>
-      Array.from(line.matchAll(/([\d]+[\d.,]+)/g), m =>
+        Array.from(line.matchAll(/([\d]+[\d.,]+)/g), m =>
         parseFloat(m[1].replace(/,/g, ''))
-      )
-    );
+        )
+    ).filter(num => num >= 1 && num <= 1000); // Filter sensible totals
     if (amounts.length) total = Math.max(...amounts).toFixed(2);
-  }
+    }
 
   // --- Date ---
   let date = "";
