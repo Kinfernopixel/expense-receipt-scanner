@@ -24,7 +24,6 @@ async function classifyWithOllama(text) {
 
   Category:`;
 
-
   console.log("Sending prompt to Ollama:", prompt);
 
   try {
@@ -37,8 +36,6 @@ async function classifyWithOllama(text) {
       }
     );
     console.log("Ollama response:", response.data);
-    // Sometimes Ollama may return the result under 'response', sometimes under 'message' or nested in 'choices'
-    // Here, we use 'response.data.response', but you can add more logic if needed
     return response.data.response ? response.data.response.trim() : "";
   } catch (error) {
     console.error("Ollama error:", error);
@@ -105,6 +102,8 @@ function parseReceiptFields(text) {
 
   return { total, date, merchant, category };
 }
+
+const COLORS = ["#8884d8", "#5ad1b0", "#ffc658", "#f89253", "#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
 
 function ReceiptUploader({ onImageUpload }) {
   const [selectedImage, setSelectedImage] = useState(null);
@@ -177,98 +176,151 @@ function ReceiptUploader({ onImageUpload }) {
     total: Number(total.toFixed(2)),
   }));
 
-  const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff8042", "#0088FE", "#00C49F", "#FFBB28", "#FF8042"];
+  // Fancy Styles
+  const glassCard = {
+    background: "rgba(255, 255, 255, 0.88)",
+    boxShadow: "0 8px 32px 0 rgba(31, 38, 135, 0.10)",
+    borderRadius: "1.5rem",
+    padding: "2.2rem",
+    margin: "2rem auto",
+    maxWidth: 530,
+    border: "1.5px solid rgba(255, 255, 255, 0.18)"
+  };
 
-  return (
-    <div style={{ margin: "2rem auto", textAlign: "center", maxWidth: 800 }}>
-      <h2>Upload Receipt Image</h2>
+  const fancyButton = {
+    background: "linear-gradient(90deg, #7f7fd5 0%, #86a8e7 100%)",
+    color: "#fff",
+    padding: "0.65rem 2rem",
+    fontWeight: 700,
+    border: "none",
+    borderRadius: "1.25rem",
+    cursor: "pointer",
+    marginTop: "1.2rem",
+    fontSize: "1rem",
+    boxShadow: "0 2px 8px rgba(120,130,255,0.13)",
+    transition: "background 0.2s"
+  };
+
+  const uploadLabel = {
+    display: "inline-block",
+    background: "linear-gradient(90deg, #a18cd1 0%, #fbc2eb 100%)",
+    color: "#222",
+    fontWeight: 600,
+    padding: "0.85rem 2rem",
+    borderRadius: "2rem",
+    cursor: "pointer",
+    boxShadow: "0 2px 6px rgba(220, 220, 255, 0.13)",
+    fontSize: "1.1rem",
+    letterSpacing: "0.05rem"
+  };
+
+  const inputHidden = { display: "none" };
+
+return (
+  <div style={{
+    minHeight: "100vh",
+    background: "linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)",
+    fontFamily: "'Inter', 'Poppins', sans-serif",
+    padding: "0 0 3rem 0"
+  }}>
+    <div style={glassCard}>
+      <h2 style={{ fontWeight: 800, fontSize: "2rem", marginBottom: "1.7rem", letterSpacing: "0.01em" }}>
+        📸 Smart Receipt Uploader
+      </h2>
+      {/* Upload input */}
+      <label htmlFor="receipt-upload" style={uploadLabel}>
+        {selectedImage ? "Change Receipt Image" : "Upload Receipt Image"}
+      </label>
       <input
         type="file"
+        id="receipt-upload"
         accept="image/png, image/jpeg, image/jpg"
+        style={inputHidden}
         onChange={handleImageChange}
-        style={{ margin: "1rem 0" }}
       />
+      {/* Image Preview */}
       {previewUrl && (
-        <div>
+        <div style={{ margin: "1.5rem 0 1rem 0" }}>
           <img
             src={previewUrl}
             alt="Receipt Preview"
             style={{
-              maxWidth: "300px",
-              margin: "1rem 0",
-              border: "1px solid #ccc",
-              borderRadius: "8px",
+              maxWidth: "90%",
+              boxShadow: "0 4px 22px rgba(150, 150, 255, 0.15)",
+              border: "1.5px solid #eee",
+              borderRadius: "1rem",
             }}
           />
           <div>
-            <button onClick={handleReset} style={{ marginTop: "1rem" }}>
-              Remove Image
+            <button onClick={handleReset} style={{ ...fancyButton, background: "#fff", color: "#7f7fd5", border: "1px solid #aaa", marginTop: "1.2rem" }}>
+              ❌ Remove Image
             </button>
           </div>
         </div>
       )}
-      {loading && <p>Extracting text, please wait...</p>}
+      {loading && (
+        <div style={{ margin: "2rem auto" }}>
+          <div className="loader" style={{
+            width: "48px", height: "48px", border: "6px solid #f3f3f3", borderTop: "6px solid #8884d8",
+            borderRadius: "50%", animation: "spin 1s linear infinite", margin: "0 auto"
+          }} />
+          <style>{`@keyframes spin { 0% {transform:rotate(0deg);} 100% {transform:rotate(360deg);} }`}</style>
+          <div style={{ marginTop: "1rem", color: "#8884d8", fontWeight: 600 }}>
+            Extracting text, please wait...
+          </div>
+        </div>
+      )}
+      {/* Extracted Text */}
       {ocrText && (
-        <div style={{ marginTop: "1.5rem" }}>
-          <h3>Extracted Text:</h3>
-          <pre
-            style={{
-              background: "#f8f8f8",
-              padding: "1rem",
-              textAlign: "left",
-              borderRadius: "6px",
-              maxWidth: "400px",
-              margin: "0 auto",
-              overflowX: "auto",
-            }}
-          >
+        <div style={{
+          background: "#f4f8fb", borderRadius: "0.8rem", margin: "1.5rem auto 1rem auto",
+          boxShadow: "0 1px 8px #e9e9fc", padding: "1.1rem", maxWidth: "400px"
+        }}>
+          <h3 style={{ fontWeight: 700, color: "#6569b7" }}>Extracted Text</h3>
+          <pre style={{
+            background: "#f9f9fe", color: "#222", fontSize: "0.98rem", padding: "0.6rem",
+            borderRadius: "0.5rem", whiteSpace: "pre-wrap", overflowX: "auto"
+          }}>
             {ocrText}
           </pre>
         </div>
       )}
+      {/* Parsed Fields */}
       {(parsedFields.total || parsedFields.date || parsedFields.merchant) && (
-        <div style={{ marginTop: "1.5rem" }}>
-          <h3>Parsed Fields:</h3>
-          <div>
-            <b>Merchant:</b> {parsedFields.merchant || "Not found"}
-          </div>
-          <div>
-            <b>Date:</b> {parsedFields.date || "Not found"}
-          </div>
-          <div>
-            <b>Total:</b> {parsedFields.total || "Not found"}
-          </div>
-          <div>
-            <b>Category:</b> {parsedFields.category || "Other"}
-          </div>
+        <div style={{
+          background: "#f8faff",
+          borderRadius: "1rem",
+          padding: "1rem 1.3rem",
+          boxShadow: "0 1px 8px #e9e9fc",
+          margin: "1.8rem 0 1.2rem 0"
+        }}>
+          <h3 style={{ fontWeight: 700, color: "#6e6edb" }}>Parsed Fields</h3>
+          <div style={{ margin: "0.6rem 0" }}><b>Merchant:</b> {parsedFields.merchant || "Not found"}</div>
+          <div style={{ margin: "0.6rem 0" }}><b>Date:</b> {parsedFields.date || "Not found"}</div>
+          <div style={{ margin: "0.6rem 0" }}><b>Total:</b> {parsedFields.total || "Not found"}</div>
+          <div style={{ margin: "0.6rem 0" }}><b>Category:</b> <span style={{ color: "#6e6edb" }}>{parsedFields.category || "Other"}</span></div>
           <button
-            style={{
-              marginTop: "1rem",
-              padding: "0.5rem 1.5rem",
-              fontWeight: "bold",
-              background: "#8884d8",
-              color: "white",
-              border: "none",
-              borderRadius: "5px",
-              cursor: "pointer",
-            }}
+            style={fancyButton}
             onClick={() => {
               setReceipts([...receipts, parsedFields]);
               handleReset();
             }}
           >
-            Save Receipt
+            💾 Save Receipt
           </button>
         </div>
       )}
-      {/* Saved Receipts Table */}
-      {receipts.length > 0 && (
-        <div style={{ maxWidth: 700, margin: "2rem auto" }}>
-          <h2>Saved Receipts</h2>
-          <table style={{ width: "100%", borderCollapse: "collapse", margin: "1rem auto" }}>
+    </div>
+
+    {/* Receipts Table */}
+    {receipts.length > 0 && (
+      <div style={{ ...glassCard, maxWidth: 740 }}>
+        <h2 style={{ fontWeight: 700, fontSize: "1.4rem", marginBottom: "1.2rem" }}>Saved Receipts</h2>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "1rem", borderRadius: "1rem", overflow: "hidden" }}>
             <thead>
-              <tr style={{ background: "#f2f2f2" }}>
-                <th>Merchant</th>
+              <tr style={{ background: "#ececff", color: "#666" }}>
+                <th style={{ padding: "0.7rem" }}>Merchant</th>
                 <th>Date</th>
                 <th>Total</th>
                 <th>Category</th>
@@ -276,59 +328,70 @@ function ReceiptUploader({ onImageUpload }) {
             </thead>
             <tbody>
               {receipts.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.merchant}</td>
+                <tr key={i} style={{ background: i % 2 === 0 ? "#f8faff" : "#f3f4fa" }}>
+                  <td style={{ padding: "0.7rem" }}>{r.merchant}</td>
                   <td>{r.date}</td>
-                  <td>{r.total}</td>
-                  <td>{r.category}</td>
+                  <td>${r.total}</td>
+                  <td><span style={{
+                    background: "#ececff", color: "#7f7fd5", padding: "0.3rem 0.8rem",
+                    borderRadius: "1rem", fontWeight: 600
+                  }}>{r.category}</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      )}
-      {/* Bar Chart */}
-      {receipts.length > 0 && (
-        <div style={{ maxWidth: 500, margin: "2rem auto" }}>
-          <h2>Spending by Category</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={data}>
-              <XAxis dataKey="category" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Bar dataKey="total" fill="#8884d8" />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-      {/* Pie Chart */}
-      {receipts.length > 0 && (
-        <div style={{ maxWidth: 400, margin: "2rem auto" }}>
-          <h2>Spending Distribution</h2>
-          <ResponsiveContainer width="100%" height={300}>
-            <PieChart>
-              <Pie
-                data={data}
-                dataKey="total"
-                nameKey="category"
-                cx="50%"
-                cy="50%"
-                outerRadius={90}
-                label
-              >
-                {data.map((entry, idx) => (
-                  <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />
-                ))}
-              </Pie>
-              <Tooltip />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
+      </div>
+    )}
+
+    {/* Bar Chart */}
+    {receipts.length > 0 && (
+      <div style={{ ...glassCard, maxWidth: 560, background: "rgba(255,255,255,0.95)" }}>
+        <h2 style={{ fontWeight: 700, color: "#5252be", fontSize: "1.2rem" }}>Spending by Category</h2>
+        <ResponsiveContainer width="100%" height={270}>
+          <BarChart data={data}>
+            <XAxis dataKey="category" />
+            <YAxis />
+            <Tooltip wrapperStyle={{ borderRadius: "0.7rem", background: "#f6f8ff", color: "#333" }} />
+            <Legend />
+            <Bar dataKey="total">
+              {data.map((entry, idx) => (
+                <Cell key={`cell-bar-${idx}`} fill={COLORS[idx % COLORS.length]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    )}
+
+    {/* Pie Chart */}
+    {receipts.length > 0 && (
+      <div style={{ ...glassCard, maxWidth: 400 }}>
+        <h2 style={{ fontWeight: 700, color: "#5252be", fontSize: "1.2rem" }}>Spending Distribution</h2>
+        <ResponsiveContainer width="100%" height={250}>
+          <PieChart>
+            <Pie
+              data={data}
+              dataKey="total"
+              nameKey="category"
+              cx="50%"
+              cy="50%"
+              outerRadius={85}
+              label
+              isAnimationActive
+            >
+              {data.map((entry, idx) => (
+                <Cell key={`cell-pie-${idx}`} fill={COLORS[idx % COLORS.length]} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
+      </div>
+    )}
+  </div>
+);
 }
 
 export default ReceiptUploader;
